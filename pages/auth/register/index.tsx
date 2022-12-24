@@ -1,29 +1,31 @@
-import React, { useState } from "react";
+import React from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { useFormik } from "formik";
-import * as Yup from "yup";
-import { Snackbar, Alert, TextField, Box, Button } from "@mui/material";
-import CenteredWrapper from "../../components/CenteredWrapper";
+import useSWRMutation from "swr/mutation";
+import { toast } from "react-toastify";
+import { TextField, Box, Button } from "@mui/material";
+import CenteredWrapper from "../../../components/CenteredWrapper";
+import { formStyle } from "./styles";
+import { RegisterProps } from "./interfaces";
+import { registerValidateScheme } from "./validationScheme";
 
-interface RegisterProps {
-  name: string;
-  email: string;
-  password: string;
+async function sendRequest(url: string, { arg }: any) {
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(arg),
+  });
 }
-
-const formStyle = {
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-  alignContent: "center",
-  width: "500px",
-  gap: 3,
-};
 
 const Register: React.FC<RegisterProps> = () => {
   const router = useRouter();
-  const [alertTetxt, setAlertText] = useState("");
+  const { trigger, isMutating } = useSWRMutation(
+    "http://localhost:8080/user/create/",
+    sendRequest
+  );
   const formik = useFormik({
     initialValues: {
       name: "",
@@ -31,52 +33,26 @@ const Register: React.FC<RegisterProps> = () => {
       password: "",
       password_repeated: "",
     },
-    validationSchema: Yup.object({
-      name: Yup.string().required(),
-      email: Yup.string()
-        .email("Invalid email address")
-        .max(15, "Must be 15 characters or less")
-        .required("Required"),
-      password: Yup.string()
-        .min(8, "Password too short")
-        .max(20, "Must be 20 characters or less")
-        .required("Required"),
-      password_repeated: Yup.string()
-        .min(8, "Password too short")
-        .max(20, "Must be 20 characters or less")
-        .oneOf([Yup.ref("password"), null], "password must match")
-        .required("Required"),
-    }),
-    onSubmit: async ({ name, email, password, password_repeated }) => {
-      setAlertText("");
+    validationSchema: registerValidateScheme,
+    onSubmit: async (values) => {
       try {
-        const response = await fetch("http://localhost:8080/user/create/", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+        const response = await trigger({ ...values });
 
-          body: JSON.stringify({
-            name,
-            email,
-            password,
-            password_repeated,
-          }),
-        });
+        if (response) {
+          const json = await response.json();
 
-        const json = await response.json();
-
-        switch (response.status) {
-          case 201:
-            setAlertText("User successfully created");
-            setTimeout(() => router.push("/auth/login"), 2000);
-          case 400:
-            if (json.error === "email_exists") {
-              setAlertText("Such email already exists");
-            }
-            if (json.error === "name_exists") {
-              setAlertText("Such name already exists");
-            }
+          switch (response.status) {
+            case 201:
+              toast.warn("User successfully created");
+              router.push(`/user/verification/${json.id}`);
+            case 400:
+              if (json.error === "email_exists") {
+                toast.warn("Such email already exists");
+              }
+              if (json.error === "name_exists") {
+                toast.warn("Such name already exists");
+              }
+          }
         }
       } catch (err) {
         console.log(err);
@@ -157,25 +133,16 @@ const Register: React.FC<RegisterProps> = () => {
             }
             {...formik.getFieldProps("password_repeated")}
           />
-          <Button size="large" type="submit" variant="contained">
+          <Button
+            disabled={isMutating}
+            size="large"
+            type="submit"
+            variant="contained"
+          >
             Register
           </Button>
         </Box>
       </CenteredWrapper>
-      <Snackbar
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        open={Boolean(alertTetxt)}
-        onClose={() => setAlertText("")}
-        autoHideDuration={6000}
-      >
-        <Alert
-          severity="warning"
-          sx={{ width: "100%" }}
-          onClose={() => setAlertText("")}
-        >
-          {alertTetxt}
-        </Alert>
-      </Snackbar>
     </>
   );
 };

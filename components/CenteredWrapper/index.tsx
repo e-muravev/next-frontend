@@ -5,9 +5,9 @@ const CenterWrapper: React.FC<any> = ({ children }) => {
   return (
     <Box
       sx={{
-        display: "flex",
+        display: "flex",  
         justifyContent: "center",
-        alignContent: "center",
+        alignItems: "center",
         minHeight: "100vh",
       }}
     >
